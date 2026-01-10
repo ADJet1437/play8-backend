@@ -13,7 +13,11 @@ app = FastAPI(title="Play8 Court Machine Booking API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://play8.ai",
+        "https://www.play8.ai",
+        "http://localhost:3011"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
