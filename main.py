@@ -16,7 +16,9 @@ app.add_middleware(
     allow_origins=[
         "https://play8.ai",
         "https://www.play8.ai",
-        "http://localhost:3011"
+        "http://localhost:3011",
+        "http://localhost:5173",  # Vite default dev server
+        "http://localhost:3000",  # Common React dev server
     ],
     allow_credentials=True,
     allow_methods=["*"],

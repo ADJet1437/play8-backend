@@ -6,6 +6,7 @@ This will replace light-colored background pixels with pure white (#FFFFFF).
 
 from PIL import Image
 import sys
+import os
 
 def convert_background_to_white(input_path, output_path, threshold=240):
     """
@@ -49,8 +50,11 @@ def convert_background_to_white(input_path, output_path, threshold=240):
         sys.exit(1)
 
 if __name__ == "__main__":
-    input_file = "play8-icon.PNG"
-    output_file = "play8-icon-white-bg.png"
+    # Get the parent directory (play8-backend) where images are stored
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    parent_dir = os.path.dirname(script_dir)
+    input_file = os.path.join(parent_dir, "play8-icon.png")
+    output_file = os.path.join(parent_dir, "play8-icon-white-bg.png")
 
     print("Converting background to pure white...")
     convert_background_to_white(input_file, output_file)

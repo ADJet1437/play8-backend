@@ -6,6 +6,7 @@ Detects content bounds and crops with minimal padding.
 
 from PIL import Image
 import sys
+import os
 
 def find_content_bounds(img, threshold=250):
     """
@@ -91,8 +92,12 @@ def crop_logo(input_path, output_path, padding=20):
         sys.exit(1)
 
 if __name__ == "__main__":
-    input_file = "play8-icon-white-bg.png"
-    output_file = "play8-logo-cropped.png"
+    # Get the parent directory (play8-backend) where images are stored
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    parent_dir = os.path.dirname(script_dir)
+    
+    input_file = os.path.join(parent_dir, "play8-icon-white-bg.png")
+    output_file = os.path.join(parent_dir, "play8-logo-cropped.png")
 
     print("Cropping logo to remove white space...\n")
     crop_logo(input_file, output_file, padding=20)
