@@ -1,15 +1,29 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from typing import Dict
-import uuid
+from sqlalchemy.orm import Session
+from typing import List
+from datetime import datetime
+from contextlib import asynccontextmanager
 
+from database import get_db, init_database as create_tables
+from db_models import Machine as DBMachine, Booking as DBBooking
 from models import (
     Booking, BookingCreate, BookingUpdate,
     Machine, MachineCreate, MachineUpdate,
     PagedResponse, DeleteResponse
 )
 
-app = FastAPI(title="Play8 Court Machine Booking API")
+# Lifespan event handler for startup/shutdown
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Initialize database
+    create_tables()
+    from init_db import init_sample_data
+    init_sample_data()
+    yield
+    # Shutdown: Add cleanup code here if needed
+
+app = FastAPI(title="Play8 Court Machine Booking API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -25,114 +39,173 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# In-memory storage
-bookings_db: Dict[str, Booking] = {}
-machines_db: Dict[str, Machine] = {}
+# Helper functions to convert between DB models and Pydantic models
+def db_machine_to_pydantic(db_machine: DBMachine) -> Machine:
+    return Machine(
+        id=db_machine.id,
+        name=db_machine.name,
+        location=db_machine.location,
+        status=db_machine.status
+    )
 
-# Initialize with some sample machines
-def init_sample_data():
-    sample_machines = [
-        Machine(id=str(uuid.uuid4()), name="Court 1", location="Building A", status="available"),
-        Machine(id=str(uuid.uuid4()), name="Court 2", location="Building A", status="available"),
-        Machine(id=str(uuid.uuid4()), name="Court 3", location="Building B", status="maintenance"),
-    ]
-    for machine in sample_machines:
-        machines_db[machine.id] = machine
-
-init_sample_data()
+def db_booking_to_pydantic(db_booking: DBBooking) -> Booking:
+    return Booking(
+        id=db_booking.id,
+        user_id=db_booking.user_id,
+        machine_id=db_booking.machine_id,
+        start_time=db_booking.start_time.isoformat() if db_booking.start_time else "",
+        end_time=db_booking.end_time.isoformat() if db_booking.end_time else None,
+        status=db_booking.status
+    )
 
 # Booking endpoints
-@app.get("/api/v1/bookings")
-def list_bookings(limit: int = 100, offset: int = 0) -> PagedResponse[Booking]:
-    bookings_list = list(bookings_db.values())
-    total = len(bookings_list)
-    paginated = bookings_list[offset:offset + limit]
-
+@app.get("/api/v1/bookings", response_model=PagedResponse[Booking])
+def list_bookings(limit: int = 100, offset: int = 0, db: Session = Depends(get_db)):
+    total = db.query(DBBooking).count()
+    bookings = db.query(DBBooking).offset(offset).limit(limit).all()
+    
     return PagedResponse(
-        data=paginated,
+        data=[db_booking_to_pydantic(b) for b in bookings],
         total=total,
         limit=limit,
         offset=offset
     )
 
-@app.get("/api/v1/bookings/{booking_id}")
-def get_booking(booking_id: str) -> Booking:
-    if booking_id not in bookings_db:
+@app.get("/api/v1/bookings/{booking_id}", response_model=Booking)
+def get_booking(booking_id: str, db: Session = Depends(get_db)):
+    booking = db.query(DBBooking).filter(DBBooking.id == booking_id).first()
+    if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
-    return bookings_db[booking_id]
+    return db_booking_to_pydantic(booking)
 
-@app.post("/api/v1/bookings")
-def create_booking(booking: BookingCreate) -> Booking:
-    booking_id = str(uuid.uuid4())
-    new_booking = Booking(id=booking_id, **booking.model_dump())
-    bookings_db[booking_id] = new_booking
-    return new_booking
+@app.post("/api/v1/bookings", response_model=Booking)
+def create_booking(booking: BookingCreate, db: Session = Depends(get_db)):
+    # Check if machine exists
+    machine = db.query(DBMachine).filter(DBMachine.id == booking.machine_id).first()
+    if not machine:
+        raise HTTPException(status_code=404, detail="Machine not found")
+    
+    # Parse start_time string to datetime
+    start_time = datetime.fromisoformat(booking.start_time.replace('Z', '+00:00'))
+    
+    # Create booking
+    db_booking = DBBooking(
+        user_id=booking.user_id,
+        machine_id=booking.machine_id,
+        start_time=start_time,
+        end_time=datetime.fromisoformat(booking.end_time.replace('Z', '+00:00')) if booking.end_time else None,
+        status=booking.status
+    )
+    
+    db.add(db_booking)
+    db.commit()
+    db.refresh(db_booking)
+    
+    return db_booking_to_pydantic(db_booking)
 
-@app.put("/api/v1/bookings/{booking_id}")
-def update_booking(booking_id: str, booking_update: BookingUpdate) -> Booking:
-    if booking_id not in bookings_db:
+@app.put("/api/v1/bookings/{booking_id}", response_model=Booking)
+def update_booking(booking_id: str, booking_update: BookingUpdate, db: Session = Depends(get_db)):
+    db_booking = db.query(DBBooking).filter(DBBooking.id == booking_id).first()
+    if not db_booking:
         raise HTTPException(status_code=404, detail="Booking not found")
-
-    existing_booking = bookings_db[booking_id]
+    
+    # Update fields
     update_data = booking_update.model_dump(exclude_unset=True)
+    
+    if "start_time" in update_data and update_data["start_time"]:
+        db_booking.start_time = datetime.fromisoformat(update_data["start_time"].replace('Z', '+00:00'))
+    if "end_time" in update_data and update_data["end_time"]:
+        db_booking.end_time = datetime.fromisoformat(update_data["end_time"].replace('Z', '+00:00'))
+    if "user_id" in update_data:
+        db_booking.user_id = update_data["user_id"]
+    if "machine_id" in update_data:
+        # Verify machine exists
+        machine = db.query(DBMachine).filter(DBMachine.id == update_data["machine_id"]).first()
+        if not machine:
+            raise HTTPException(status_code=404, detail="Machine not found")
+        db_booking.machine_id = update_data["machine_id"]
+    if "status" in update_data:
+        db_booking.status = update_data["status"]
+    
+    db.commit()
+    db.refresh(db_booking)
+    
+    return db_booking_to_pydantic(db_booking)
 
-    updated_booking = existing_booking.model_copy(update=update_data)
-    bookings_db[booking_id] = updated_booking
-    return updated_booking
-
-@app.delete("/api/v1/bookings/{booking_id}")
-def delete_booking(booking_id: str) -> DeleteResponse:
-    if booking_id not in bookings_db:
+@app.delete("/api/v1/bookings/{booking_id}", response_model=DeleteResponse)
+def delete_booking(booking_id: str, db: Session = Depends(get_db)):
+    db_booking = db.query(DBBooking).filter(DBBooking.id == booking_id).first()
+    if not db_booking:
         raise HTTPException(status_code=404, detail="Booking not found")
-
-    del bookings_db[booking_id]
+    
+    db.delete(db_booking)
+    db.commit()
+    
     return DeleteResponse(status="success", id=booking_id)
 
 # Machine endpoints
-@app.get("/api/v1/machines")
-def list_machines(limit: int = 100, offset: int = 0) -> PagedResponse[Machine]:
-    machines_list = list(machines_db.values())
-    total = len(machines_list)
-    paginated = machines_list[offset:offset + limit]
-
+@app.get("/api/v1/machines", response_model=PagedResponse[Machine])
+def list_machines(limit: int = 100, offset: int = 0, db: Session = Depends(get_db)):
+    total = db.query(DBMachine).count()
+    machines = db.query(DBMachine).offset(offset).limit(limit).all()
+    
     return PagedResponse(
-        data=paginated,
+        data=[db_machine_to_pydantic(m) for m in machines],
         total=total,
         limit=limit,
         offset=offset
     )
 
-@app.get("/api/v1/machines/{machine_id}")
-def get_machine(machine_id: str) -> Machine:
-    if machine_id not in machines_db:
+@app.get("/api/v1/machines/{machine_id}", response_model=Machine)
+def get_machine(machine_id: str, db: Session = Depends(get_db)):
+    machine = db.query(DBMachine).filter(DBMachine.id == machine_id).first()
+    if not machine:
         raise HTTPException(status_code=404, detail="Machine not found")
-    return machines_db[machine_id]
+    return db_machine_to_pydantic(machine)
 
-@app.post("/api/v1/machines")
-def create_machine(machine: MachineCreate) -> Machine:
-    machine_id = str(uuid.uuid4())
-    new_machine = Machine(id=machine_id, **machine.model_dump())
-    machines_db[machine_id] = new_machine
-    return new_machine
+@app.post("/api/v1/machines", response_model=Machine)
+def create_machine(machine: MachineCreate, db: Session = Depends(get_db)):
+    db_machine = DBMachine(
+        name=machine.name,
+        location=machine.location,
+        status=machine.status
+    )
+    
+    db.add(db_machine)
+    db.commit()
+    db.refresh(db_machine)
+    
+    return db_machine_to_pydantic(db_machine)
 
-@app.put("/api/v1/machines/{machine_id}")
-def update_machine(machine_id: str, machine_update: MachineUpdate) -> Machine:
-    if machine_id not in machines_db:
+@app.put("/api/v1/machines/{machine_id}", response_model=Machine)
+def update_machine(machine_id: str, machine_update: MachineUpdate, db: Session = Depends(get_db)):
+    db_machine = db.query(DBMachine).filter(DBMachine.id == machine_id).first()
+    if not db_machine:
         raise HTTPException(status_code=404, detail="Machine not found")
-
-    existing_machine = machines_db[machine_id]
+    
     update_data = machine_update.model_dump(exclude_unset=True)
+    
+    if "name" in update_data:
+        db_machine.name = update_data["name"]
+    if "location" in update_data:
+        db_machine.location = update_data["location"]
+    if "status" in update_data:
+        db_machine.status = update_data["status"]
+    
+    db.commit()
+    db.refresh(db_machine)
+    
+    return db_machine_to_pydantic(db_machine)
 
-    updated_machine = existing_machine.model_copy(update=update_data)
-    machines_db[machine_id] = updated_machine
-    return updated_machine
-
-@app.delete("/api/v1/machines/{machine_id}")
-def delete_machine(machine_id: str) -> DeleteResponse:
-    if machine_id not in machines_db:
+@app.delete("/api/v1/machines/{machine_id}", response_model=DeleteResponse)
+def delete_machine(machine_id: str, db: Session = Depends(get_db)):
+    db_machine = db.query(DBMachine).filter(DBMachine.id == machine_id).first()
+    if not db_machine:
         raise HTTPException(status_code=404, detail="Machine not found")
-
-    del machines_db[machine_id]
+    
+    db.delete(db_machine)
+    db.commit()
+    
     return DeleteResponse(status="success", id=machine_id)
 
 @app.get("/")
