@@ -29,10 +29,12 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://play8.ai",
+        "https://admin.play8.ai",
         "https://www.play8.ai",
         "http://localhost:3011",
         "http://localhost:5173",  # Vite default dev server
         "http://localhost:3000",  # Common React dev server
+        "http://localhost:5174",  # Admin frontend (Vite dev server alternative port)
     ],
     allow_credentials=True,
     allow_methods=["*"],
