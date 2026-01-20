@@ -1,15 +1,12 @@
-from fastapi import APIRouter, HTTPException, Depends, Response, status, Cookie, Header
-from fastapi.security import HTTPAuthorizationCredentials
-from sqlalchemy.orm import Session
-from typing import Optional
 from datetime import timedelta
 
-from src.core.database import get_db
-from src.core.security import get_current_user, verify_token, security
+from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Response, status
+from sqlalchemy.orm import Session
+
 from src.core.config import ACCESS_TOKEN_EXPIRE_DAYS, GOOGLE_CLIENT_ID, IS_PRODUCTION
-from src.user.models import User, UserResponse, Token, GoogleAuthRequest
+from src.core.database import get_db
+from src.user.models import GoogleAuthRequest, Token, UserResponse
 from src.user.service import UserService
-from src.user.db_model import User as DBUser
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
@@ -21,15 +18,24 @@ async def google_auth_url():
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Google OAuth not configured"
         )
-    
+
+    import urllib.parse
+
     from src.core.config import GOOGLE_REDIRECT_URI
+
+    # Build OAuth URL with proper encoding
+    params = {
+        "client_id": GOOGLE_CLIENT_ID,
+        "redirect_uri": GOOGLE_REDIRECT_URI,
+        "response_type": "code",
+        "scope": "openid email profile",
+        "access_type": "offline",
+        "prompt": "consent select_account",  # Force consent screen and account selection
+    }
+
     auth_url = (
         f"https://accounts.google.com/o/oauth2/v2/auth?"
-        f"client_id={GOOGLE_CLIENT_ID}&"
-        f"redirect_uri={GOOGLE_REDIRECT_URI}&"
-        f"response_type=code&"
-        f"scope=openid email profile&"
-        f"access_type=offline"
+        f"{urllib.parse.urlencode(params)}"
     )
     return {"auth_url": auth_url}
 
@@ -40,10 +46,15 @@ async def google_auth_callback(
     db: Session = Depends(get_db)
 ):
     """Handle Google OAuth callback and create/login user"""
+    import logging
+    logger = logging.getLogger(__name__)
+
     try:
+        logger.info(f"OAuth callback received with code: {auth_request.code[:10]}...")
         service = UserService(db)
         user, access_token = await service.authenticate_with_google(auth_request.code)
-        
+        logger.info(f"User authenticated: {user.email}")
+
         # Set token in HTTP-only cookie (1 week expiry)
         expires = timedelta(days=ACCESS_TOKEN_EXPIRE_DAYS)
         response.set_cookie(
@@ -56,7 +67,7 @@ async def google_auth_callback(
             path="/",
             domain=None
         )
-        
+
         return Token(
             access_token=access_token,
             token_type="bearer",
@@ -66,19 +77,19 @@ async def google_auth_callback(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
-        )
+        ) from e
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Authentication failed: {str(e)}"
-        )
+        ) from e
 
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_info(
-    token: Optional[str] = Cookie(None),
-    authorization: Optional[str] = Header(None),
+    token: str | None = Cookie(None),
+    authorization: str | None = Header(None),
     db: Session = Depends(get_db)
 ):
     """Get current authenticated user info (returns null if not authenticated)"""
@@ -88,24 +99,24 @@ async def get_current_user_info(
         token_value = token
     elif authorization and authorization.startswith("Bearer "):
         token_value = authorization.replace("Bearer ", "")
-    
+
     if not token_value:
         return UserResponse(user=None)
-    
+
     from src.core.security import verify_token
     payload = verify_token(token_value)
     if payload is None:
         return UserResponse(user=None)
-    
+
     user_id: str = payload.get("sub")
     if user_id is None:
         return UserResponse(user=None)
-    
+
     service = UserService(db)
     user = service.get_user_by_id(user_id)
     if user is None:
         return UserResponse(user=None)
-    
+
     return UserResponse(user=service.to_pydantic(user))
 
 @router.post("/logout")
@@ -118,4 +129,5 @@ async def logout(response: Response):
         samesite="lax"
     )
     return {"message": "Logged out successfully"}
+
 

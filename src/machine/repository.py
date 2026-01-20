@@ -40,3 +40,4 @@ class MachineRepository:
         """Delete a machine"""
         self.db.delete(machine)
         self.db.commit()
+

@@ -73,3 +73,4 @@ class BookingRepository:
         """Delete a booking"""
         self.db.delete(booking)
         self.db.commit()
+

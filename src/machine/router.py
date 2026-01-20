@@ -60,3 +60,4 @@ def delete_machine(machine_id: str, db: Session = Depends(get_db)):
         return DeleteResponse(status="success", id=machine_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+

@@ -1,12 +1,12 @@
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from src.core.database import get_db
-from src.core.security import get_current_user
-from src.core.models import PagedResponse, DeleteResponse
-from src.user.db_model import User as DBUser
 from src.booking.models import Booking, BookingCreate, BookingUpdate
 from src.booking.service import BookingService
+from src.core.database import get_db
+from src.core.models import DeleteResponse, PagedResponse
+from src.core.security import get_current_user
+from src.user.db_model import User as DBUser
 
 router = APIRouter(prefix="/api/v1/bookings", tags=["bookings"])
 
@@ -20,7 +20,7 @@ def list_bookings(
     """List all bookings for the current user"""
     service = BookingService(db)
     bookings, total = service.get_bookings_by_user(current_user.id, limit, offset)
-    
+
     return PagedResponse(
         data=[service.to_pydantic(b) for b in bookings],
         total=total,
@@ -37,10 +37,10 @@ def get_booking(
     """Get a specific booking"""
     service = BookingService(db)
     booking = service.get_booking_by_id(booking_id, current_user.id)
-    
+
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
-    
+
     return service.to_pydantic(booking)
 
 @router.post("", response_model=Booking)
@@ -85,4 +85,5 @@ def delete_booking(
         return DeleteResponse(status="success", id=booking_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
 
