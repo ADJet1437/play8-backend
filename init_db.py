@@ -2,8 +2,8 @@
 Script to initialize the database with tables and sample data.
 Run this once to set up the database schema.
 """
-from database import engine, SessionLocal, init_database as create_tables
-from db_models import Machine
+from src.core.database import engine, SessionLocal, init_database as create_tables
+from src.machine.db_model import Machine
 import uuid
 
 def init_sample_data():

@@ -1,7 +1,8 @@
+import os
+
+from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
-import os
-from dotenv import load_dotenv
 
 load_dotenv()
 
@@ -19,6 +20,7 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 # Base class for models
 Base = declarative_base()
 
+
 # Dependency to get DB session
 def get_db():
     db = SessionLocal()
@@ -27,9 +29,10 @@ def get_db():
     finally:
         db.close()
 
+
 # Initialize database function
 def init_database():
     """Initialize database tables"""
-    from db_models import Base
-    Base.metadata.create_all(bind=engine)
+    # Import all models to ensure they're registered with Base
 
+    Base.metadata.create_all(bind=engine)
