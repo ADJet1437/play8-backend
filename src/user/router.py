@@ -13,31 +13,53 @@ router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 @router.get("/google")
 async def google_auth_url():
     """Get Google OAuth URL"""
-    if not GOOGLE_CLIENT_ID:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Google OAuth not configured"
-        )
-
+    import logging
     import urllib.parse
 
-    from src.core.config import GOOGLE_REDIRECT_URI
+    logger = logging.getLogger(__name__)
 
-    # Build OAuth URL with proper encoding
-    params = {
-        "client_id": GOOGLE_CLIENT_ID,
-        "redirect_uri": GOOGLE_REDIRECT_URI,
-        "response_type": "code",
-        "scope": "openid email profile",
-        "access_type": "offline",
-        "prompt": "consent select_account",  # Force consent screen and account selection
-    }
+    try:
+        if not GOOGLE_CLIENT_ID:
+            logger.error("GOOGLE_CLIENT_ID is not configured")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Google OAuth not configured: GOOGLE_CLIENT_ID is missing"
+            )
 
-    auth_url = (
-        f"https://accounts.google.com/o/oauth2/v2/auth?"
-        f"{urllib.parse.urlencode(params)}"
-    )
-    return {"auth_url": auth_url}
+        from src.core.config import GOOGLE_REDIRECT_URI
+
+        if not GOOGLE_REDIRECT_URI:
+            logger.error("GOOGLE_REDIRECT_URI is not configured")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Google OAuth not configured: GOOGLE_REDIRECT_URI is missing"
+            )
+
+        # Build OAuth URL with proper encoding
+        params = {
+            "client_id": GOOGLE_CLIENT_ID,
+            "redirect_uri": GOOGLE_REDIRECT_URI,
+            "response_type": "code",
+            "scope": "openid email profile",
+            "access_type": "offline",
+            "prompt": "consent select_account",  # Force consent screen and account selection
+        }
+
+        auth_url = (
+            f"https://accounts.google.com/o/oauth2/v2/auth?"
+            f"{urllib.parse.urlencode(params)}"
+        )
+
+        logger.info(f"Generated OAuth URL for redirect_uri: {GOOGLE_REDIRECT_URI}")
+        return {"auth_url": auth_url}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error generating Google OAuth URL: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate OAuth URL: {str(e)}"
+        ) from e
 
 @router.post("/google/callback", response_model=Token)
 async def google_auth_callback(
