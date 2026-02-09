@@ -26,3 +26,6 @@ class Machine(Base):
     # Relationship
     bookings = relationship("Booking", back_populates="machine")
 
+
+
+

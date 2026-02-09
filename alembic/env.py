@@ -20,6 +20,7 @@ from src.core.database import Base
 from src.user.db_model import User
 from src.booking.db_model import Booking
 from src.machine.db_model import Machine
+from src.agent.db_model import Conversation, Message
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

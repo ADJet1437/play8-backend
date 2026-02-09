@@ -17,6 +17,7 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    # Relationship
+    # Relationships
     bookings = relationship("Booking", back_populates="user")
+    conversations = relationship("Conversation", back_populates="user")
 

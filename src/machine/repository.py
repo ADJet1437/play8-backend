@@ -41,3 +41,6 @@ class MachineRepository:
         self.db.delete(machine)
         self.db.commit()
 
+
+
+
