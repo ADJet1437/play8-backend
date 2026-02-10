@@ -1,6 +1,8 @@
 from sqlalchemy.orm import Session
 
-from src.agent.db_model import Conversation, Message
+import json
+
+from src.agent.db_model import CardProgress, ContentBlock, Conversation, Message
 
 
 class ConversationRepository:
@@ -65,3 +67,72 @@ class MessageRepository:
         self.db.commit()
         self.db.refresh(message)
         return message
+
+
+class ContentBlockRepository:
+    def __init__(self, db: Session):
+        self.db = db
+
+    def create(
+        self,
+        message_id: str,
+        block_type: str,
+        content: str,
+        tool_name: str | None = None,
+        order: int = 0,
+    ) -> ContentBlock:
+        block = ContentBlock(
+            message_id=message_id,
+            type=block_type,
+            content=content,
+            tool_name=tool_name,
+            order=order,
+        )
+        self.db.add(block)
+        self.db.commit()
+        self.db.refresh(block)
+        return block
+
+    def get_by_message_id(self, message_id: str) -> list[ContentBlock]:
+        return (
+            self.db.query(ContentBlock)
+            .filter(ContentBlock.message_id == message_id)
+            .order_by(ContentBlock.order.asc())
+            .all()
+        )
+
+
+class CardProgressRepository:
+    def __init__(self, db: Session):
+        self.db = db
+
+    def get_by_content_block_and_user(
+        self, content_block_id: str, user_id: str
+    ) -> CardProgress | None:
+        return (
+            self.db.query(CardProgress)
+            .filter(
+                CardProgress.content_block_id == content_block_id,
+                CardProgress.user_id == user_id,
+            )
+            .first()
+        )
+
+    def upsert(
+        self, content_block_id: str, user_id: str, checked_steps: list[bool]
+    ) -> CardProgress:
+        existing = self.get_by_content_block_and_user(content_block_id, user_id)
+        if existing:
+            existing.checked_steps = json.dumps(checked_steps)
+            self.db.commit()
+            self.db.refresh(existing)
+            return existing
+        progress = CardProgress(
+            content_block_id=content_block_id,
+            user_id=user_id,
+            checked_steps=json.dumps(checked_steps),
+        )
+        self.db.add(progress)
+        self.db.commit()
+        self.db.refresh(progress)
+        return progress

@@ -4,8 +4,15 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from src.agent.models import ChatRequest, ConversationDetail, ConversationResponse
-from src.agent.service import AgentService, generate_title, stream_chat_response
+from src.agent.agent import Agent
+from src.agent.models import (
+    CardProgressResponse,
+    CardProgressUpdate,
+    ChatRequest,
+    ConversationDetail,
+    ConversationResponse,
+)
+from src.agent.service import AgentService
 from src.core.database import get_db
 from src.core.models import DeleteResponse, PagedResponse
 from src.core.security import get_current_user
@@ -92,35 +99,62 @@ async def chat_stream(
     # Check if this is the first message (for title generation)
     should_generate_title = service.is_first_message(conversation_id)
 
-    # Build conversation history from DB
+    # Build conversation history
     conversation_history = [
-        {"role": msg.role, "content": msg.content}
-        for msg in request.conversation_history
+        {"role": msg.role, "content": msg.content} for msg in request.conversation_history
     ]
 
-    async def generate():
-        assistant_message = ""
+    agent = Agent()
 
-        async for chunk in stream_chat_response(
+    async def generate():
+        text_content = ""
+        tool_blocks = []
+
+        async for event in agent.run(
             message=request.message,
             conversation_history=conversation_history,
         ):
-            assistant_message += chunk
-            data = json.dumps({"content": chunk, "done": False, "conversation_id": conversation_id})
-            yield f"data: {data}\n\n"
+            yield f"data: {json.dumps({**event, 'conversation_id': conversation_id})}\n\n"
 
-        # Save assistant message after streaming completes
-        service.add_message(conversation_id, "assistant", assistant_message)
+            # Accumulate for persistence
+            if event["type"] == "text_delta":
+                text_content += event["content"]
+            elif event["type"] == "tool_use_end":
+                tool_blocks.append(event)
+
+        # Save assistant message with content blocks
+        msg = service.add_message(conversation_id, "assistant", text_content)
+        order = 0
+        if text_content:
+            service.add_content_block(msg.id, "text", text_content, order=order)
+            order += 1
+        for tb in tool_blocks:
+            block = service.add_content_block(
+                msg.id,
+                "tool_use",
+                tb.get("result", ""),
+                tool_name=tb.get("tool"),
+                order=order,
+            )
+            order += 1
+            # Emit card_saved with content_block_id so frontend can track progress
+            card_saved = json.dumps({
+                "type": "card_saved",
+                "content_block_id": block.id,
+                "tool": tb.get("tool"),
+                "result": tb.get("result", ""),
+                "conversation_id": conversation_id,
+            })
+            yield f"data: {card_saved}\n\n"
 
         # Generate title for first message
         title = None
         if should_generate_title:
-            title = await generate_title(request.message)
+            title = await agent.generate_title(request.message)
             service.update_title(conversation_id, title)
 
         done_data = json.dumps({
-            "content": "",
-            "done": True,
+            "type": "done",
             "conversation_id": conversation_id,
             "title": title,
         })
@@ -135,3 +169,14 @@ async def chat_stream(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.put("/cards/{content_block_id}/progress", response_model=CardProgressResponse)
+def update_card_progress(
+    content_block_id: str,
+    body: CardProgressUpdate,
+    current_user: DBUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    service = AgentService(db)
+    return service.update_card_progress(content_block_id, current_user.id, body.checked_steps)
