@@ -4,6 +4,8 @@ from src.machine.router import router as machine_router
 from src.user.router import router as user_router
 from src.agent.router import router as agent_router
 from src.plan.router import router as plan_router
+from src.saved_session.router import router as saved_session_router
+from src.manual.router import router as manual_router
 
 
 def register_routers(app):
@@ -13,3 +15,5 @@ def register_routers(app):
     app.include_router(machine_router)
     app.include_router(agent_router)
     app.include_router(plan_router)
+    app.include_router(saved_session_router)
+    app.include_router(manual_router)

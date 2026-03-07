@@ -30,6 +30,19 @@ def get_db():
         db.close()
 
 
+# Context manager for DB session (for scripts)
+from contextlib import contextmanager
+
+@contextmanager
+def get_db_context():
+    """Context manager for database sessions in scripts."""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
 # Initialize database function
 def init_database():
     """Initialize database tables"""
