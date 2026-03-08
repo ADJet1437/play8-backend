@@ -14,7 +14,7 @@ class AICompletion:
         max_tokens: int = 2000,
     ):
         self.llm = ChatOpenAI(
-            model=model or "gpt-4",
+            model=model or "gpt-4o",
             api_key=os.getenv("OPENAI_API_KEY"),
             temperature=temperature,
             max_tokens=max_tokens,
