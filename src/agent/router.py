@@ -107,8 +107,10 @@ async def chat_stream(
     agent = Agent()
 
     async def generate():
-        text_content = ""
-        tool_blocks = []
+        # Track blocks in chronological order
+        content_blocks = []  # List of (type, content, tool_name) tuples
+        current_text = ""
+        all_text = ""  # For message.content
 
         async for event in agent.run(
             message=request.message,
@@ -116,36 +118,44 @@ async def chat_stream(
         ):
             yield f"data: {json.dumps({**event, 'conversation_id': conversation_id})}\n\n"
 
-            # Accumulate for persistence
+            # Build blocks in chronological order
             if event["type"] == "text_delta":
-                text_content += event["content"]
+                current_text += event["content"]
+                all_text += event["content"]
             elif event["type"] == "tool_use_end":
-                tool_blocks.append(event)
+                # Save accumulated text as a block before the tool use
+                if current_text:
+                    content_blocks.append(("text", current_text, None))
+                    current_text = ""
+                # Save tool use block
+                content_blocks.append(("tool_use", event.get("result", ""), event.get("tool")))
 
-        # Save assistant message with content blocks
-        msg = service.add_message(conversation_id, "assistant", text_content)
-        order = 0
-        if text_content:
-            service.add_content_block(msg.id, "text", text_content, order=order)
-            order += 1
-        for tb in tool_blocks:
+        # Save any remaining text after the last tool use
+        if current_text:
+            content_blocks.append(("text", current_text, None))
+
+        # Save assistant message with content blocks in order
+        msg = service.add_message(conversation_id, "assistant", all_text)
+
+        for order, (block_type, content, tool_name) in enumerate(content_blocks):
             block = service.add_content_block(
                 msg.id,
-                "tool_use",
-                tb.get("result", ""),
-                tool_name=tb.get("tool"),
+                block_type,
+                content,
+                tool_name=tool_name,
                 order=order,
             )
-            order += 1
-            # Emit card_saved with content_block_id so frontend can track progress
-            card_saved = json.dumps({
-                "type": "card_saved",
-                "content_block_id": block.id,
-                "tool": tb.get("tool"),
-                "result": tb.get("result", ""),
-                "conversation_id": conversation_id,
-            })
-            yield f"data: {card_saved}\n\n"
+
+            # Emit card_saved for tool_use blocks
+            if block_type == "tool_use":
+                card_saved = json.dumps({
+                    "type": "card_saved",
+                    "content_block_id": block.id,
+                    "tool": tool_name,
+                    "result": content,
+                    "conversation_id": conversation_id,
+                })
+                yield f"data: {card_saved}\n\n"
 
         # Generate title for first message
         title = None
