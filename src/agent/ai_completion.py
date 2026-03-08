@@ -11,15 +11,18 @@ class AICompletion:
         self,
         model: str | None = None,
         temperature: float = 0.7,
-        max_tokens: int = 2000,
+        max_tokens: int | None = None,
     ):
-        self.llm = ChatOpenAI(
-            model=model or "gpt-4o",
-            api_key=os.getenv("OPENAI_API_KEY"),
-            temperature=temperature,
-            max_tokens=max_tokens,
-            streaming=True,
-        )
+        llm_params = {
+            "model": model or "gpt-4o",
+            "api_key": os.getenv("OPENAI_API_KEY"),
+            "temperature": temperature,
+            "streaming": True,
+        }
+        if max_tokens is not None:
+            llm_params["max_tokens"] = max_tokens
+
+        self.llm = ChatOpenAI(**llm_params)
 
     def bind_tools(self, tools: list) -> None:
         self.llm = self.llm.bind_tools(tools)

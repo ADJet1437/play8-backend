@@ -265,7 +265,6 @@ class Agent:
         # Single LLM with tools bound
         self.completion = AICompletion(
             temperature=0.7,
-            max_tokens=2000,
         )
         self.tools = [generate_training_session, search_pongbot_manual]
         self.tool_map = {t.name: t for t in self.tools}

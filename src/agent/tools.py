@@ -20,7 +20,7 @@ class TrainingPlanCard(BaseModel):
     total_duration: str = Field(description="Total session duration (e.g., '30 min', '45 min')")
     difficulty: str = Field(description="beginner, intermediate, advanced, or elite")
     sport: str = Field(description="tennis or padel", default="tennis")
-    drills: list[DrillItem] = Field(description="List of 4-6 drills in sequence")
+    drills: list[DrillItem] = Field(description="List of 3-4 drills in sequence (RECOMMENDED: 3 drills for better completion)")
     training_plan_id: str = Field(
         default_factory=lambda: str(uuid.uuid4()),
         description="Unique ID to correlate with drill cards (auto-generated if not provided)"
@@ -79,9 +79,9 @@ def generate_training_session(session: TrainingSession) -> str:
        - total_duration: Total session time (e.g., "30 min", "45 min")
        - difficulty: beginner (level 1), intermediate (level 2), advanced (level 3), or elite (level 4)
        - sport: "tennis" or "padel"
-       - drills: 4-6 DrillItem objects (name, duration, focus)
+       - drills: 3-4 DrillItem objects (name, duration, focus) - RECOMMENDED: 3 drills for completeness
 
-    2. drills: 4-6 DrillCard objects with ball sequences
+    2. drills: 3-4 DrillCard objects with ball sequences (RECOMMENDED: 3 drills to ensure all data is complete)
        - title: Drill name (e.g., "Crosscourt Backhand Rally")
        - description: What to practice
        - drill_number: 1, 2, 3, etc. (match plan.drills order)
