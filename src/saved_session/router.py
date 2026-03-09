@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from src.core.database import get_db
 from src.core.models import DeleteResponse, PagedResponse
 from src.core.security import get_current_user
-from src.saved_session.models import SavedSessionCreate, SavedSessionResponse
+from src.saved_session.models import SavedSessionCreate, SavedSessionResponse, SavedSessionUpdate
 from src.saved_session.service import SavedSessionService
 from src.user.db_model import User as DBUser
 
@@ -48,6 +48,21 @@ def get_saved_session(
     """Get a saved training session by ID"""
     service = SavedSessionService(db)
     session = service.get_session(session_id, current_user.id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return session
+
+
+@router.patch("/{session_id}", response_model=SavedSessionResponse)
+def update_saved_session(
+    session_id: str,
+    body: SavedSessionUpdate,
+    current_user: DBUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Update drill cards in a saved training session"""
+    service = SavedSessionService(db)
+    session = service.update_drill_cards(session_id, current_user.id, body.drill_cards_data)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     return session
