@@ -8,6 +8,12 @@ class SavedSessionCreate(BaseModel):
     drill_cards_data: list[dict]  # DrillCard[] as list of dicts
 
 
+class SavedSessionUpdate(BaseModel):
+    """Request to update drill cards in a saved session"""
+
+    drill_cards_data: list[dict]
+
+
 class SavedSessionResponse(BaseModel):
     """Saved training session response"""
 

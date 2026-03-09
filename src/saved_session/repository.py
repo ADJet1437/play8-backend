@@ -57,6 +57,18 @@ class SavedSessionRepository:
         sessions = query.limit(limit).offset(offset).all()
         return sessions, total
 
+    def update_drill_cards(
+        self, session_id: str, user_id: str, drill_cards_data: str
+    ) -> SavedTrainingSession | None:
+        """Update drill cards data for a saved session"""
+        session = self.get_by_id(session_id, user_id)
+        if not session:
+            return None
+        session.drill_cards_data = drill_cards_data
+        self.db.commit()
+        self.db.refresh(session)
+        return session
+
     def delete(self, session_id: str, user_id: str) -> bool:
         """Delete a saved session"""
         session = self.get_by_id(session_id, user_id)

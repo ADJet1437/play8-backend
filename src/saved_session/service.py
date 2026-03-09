@@ -52,6 +52,16 @@ class SavedSessionService:
         sessions, total = self.repository.list_by_user(user_id, limit, offset)
         return [self._to_response(s) for s in sessions], total
 
+    def update_drill_cards(
+        self, session_id: str, user_id: str, drill_cards: list[dict]
+    ) -> SavedSessionResponse | None:
+        """Update drill cards for a saved session"""
+        drill_cards_json = json.dumps(drill_cards)
+        session = self.repository.update_drill_cards(session_id, user_id, drill_cards_json)
+        if not session:
+            return None
+        return self._to_response(session)
+
     def delete_session(self, session_id: str, user_id: str) -> bool:
         """Delete a saved session"""
         return self.repository.delete(session_id, user_id)
