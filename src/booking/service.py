@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime  # noqa: UP035 - kept for explicit use below
 from typing import Optional
 
 from sqlalchemy.orm import Session
@@ -20,11 +20,12 @@ class BookingService:
         self,
         user_id: str,
         limit: int = 100,
-        offset: int = 0
+        offset: int = 0,
+        statuses: list[str] | None = None,
     ) -> tuple[list[DBBooking], int]:
-        """Get all bookings for a user"""
-        bookings = self.repository.get_by_user_id(user_id, limit, offset)
-        total = self.repository.count_by_user_id(user_id)
+        """Get bookings for a user, optionally filtered by status list."""
+        bookings = self.repository.get_by_user_id(user_id, limit, offset, statuses)
+        total = self.repository.count_by_user_id(user_id, statuses)
         return bookings, total
 
     def get_booking_by_id(self, booking_id: str, user_id: str) -> Optional[DBBooking]:
@@ -87,13 +88,16 @@ class BookingService:
 
     def to_pydantic(self, db_booking: DBBooking) -> BookingModel:
         """Convert DB model to Pydantic model"""
+        amount_paid = db_booking.payment.amount if db_booking.payment else None
         return BookingModel(
             id=db_booking.id,
             user_id=db_booking.user_id,
             machine_id=db_booking.machine_id,
             start_time=db_booking.start_time.isoformat() if db_booking.start_time else "",
             end_time=db_booking.end_time.isoformat() if db_booking.end_time else None,
-            status=db_booking.status
+            status=db_booking.status,
+            payment_status=db_booking.payment_status,
+            amount_paid=amount_paid,
         )
 
 

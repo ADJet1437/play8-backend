@@ -19,3 +19,14 @@ class MachineUpdate(BaseModel):
 
 class Machine(MachineBase):
     id: str
+
+
+class SlotInfo(BaseModel):
+    hour: int
+    status: str  # "available" | "booked"
+
+
+class SlotsResponse(BaseModel):
+    date: str
+    machine_id: str
+    slots: list[SlotInfo]

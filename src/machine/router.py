@@ -1,9 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException
+import datetime as dt
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from src.core.database import get_db
 from src.core.models import DeleteResponse, PagedResponse
-from src.machine.models import Machine, MachineCreate, MachineUpdate
+from src.machine.models import Machine, MachineCreate, MachineUpdate, SlotsResponse
 from src.machine.service import MachineService
 
 router = APIRouter(prefix="/api/v1/machines", tags=["machines"])
@@ -18,6 +20,20 @@ def list_machines(limit: int = 100, offset: int = 0, db: Session = Depends(get_d
     return PagedResponse(
         data=[service.to_pydantic(m) for m in machines], total=total, limit=limit, offset=offset
     )
+
+
+@router.get("/{machine_id}/slots", response_model=SlotsResponse)
+def get_machine_slots(
+    machine_id: str,
+    date: dt.date = Query(..., description="Date in YYYY-MM-DD format"),
+    db: Session = Depends(get_db),
+):
+    """Get hourly slot availability for a machine on a given date."""
+    service = MachineService(db)
+    machine = service.get_machine_by_id(machine_id)
+    if not machine:
+        raise HTTPException(status_code=404, detail="Machine not found")
+    return service.get_slots_for_date(machine_id, date)
 
 
 @router.get("/{machine_id}", response_model=Machine)
@@ -48,7 +64,7 @@ def update_machine(machine_id: str, machine_update: MachineUpdate, db: Session =
         db_machine = service.update_machine(machine_id, machine_update)
         return service.to_pydantic(db_machine)
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.delete("/{machine_id}", response_model=DeleteResponse)
@@ -59,7 +75,7 @@ def delete_machine(machine_id: str, db: Session = Depends(get_db)):
         service.delete_machine(machine_id)
         return DeleteResponse(status="success", id=machine_id)
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 

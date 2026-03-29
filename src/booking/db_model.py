@@ -22,9 +22,11 @@ class Booking(Base):
     status = Column(
         String, nullable=False, default="pending"
     )  # pending, confirmed, active, completed, cancelled
+    payment_status = Column(String, nullable=True)  # unpaid, paid, refunded
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # Relationships
     user = relationship("User", back_populates="bookings")
     machine = relationship("Machine", back_populates="bookings")
+    payment = relationship("Payment", back_populates="booking", uselist=False)

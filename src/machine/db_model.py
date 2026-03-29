@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Column, DateTime, String
+from sqlalchemy import Column, DateTime, Integer, String
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -20,6 +20,7 @@ class Machine(Base):
     status = Column(
         String, nullable=False, default="available"
     )  # available, maintenance, unavailable
+    price_per_hour = Column(Integer, nullable=False, default=12000)  # in öre (1/100 SEK), default 120 SEK
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
