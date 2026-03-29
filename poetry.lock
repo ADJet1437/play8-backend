@@ -2029,6 +2029,25 @@ anyio = ">=3.4.0,<5"
 full = ["httpx (>=0.22.0)", "itsdangerous", "jinja2", "python-multipart (>=0.0.7)", "pyyaml"]
 
 [[package]]
+name = "stripe"
+version = "15.0.0"
+description = "Python bindings for the Stripe API"
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "stripe-15.0.0-py3-none-any.whl", hash = "sha256:434ec5267a7402a30b76786d159c18d0e138f89195969d6c56bea2e08d353be0"},
+    {file = "stripe-15.0.0.tar.gz", hash = "sha256:0717cd9ba8e8193cef8b1c488ce27836754df496ab6fb75864096e0cdf15e52d"},
+]
+
+[package.dependencies]
+requests = ">=2.20"
+typing_extensions = ">=4.7.0"
+
+[package.extras]
+async = ["httpx"]
+
+[[package]]
 name = "tenacity"
 version = "9.1.4"
 description = "Retry code until it succeeds"
@@ -2751,4 +2770,4 @@ cffi = ["cffi (>=1.17,<2.0) ; platform_python_implementation != \"PyPy\" and pyt
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "5647fa0e6b919bbe4010e9dd034ffbe236e84d76c2e9a28524ff866f7c9ebb88"
+content-hash = "9bce91608c3dbe48fcb336b3e3241b9441a071640d774a356d4c653f5394c6b9"

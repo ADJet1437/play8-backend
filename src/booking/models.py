@@ -27,6 +27,8 @@ class BookingResponse(BaseModel):
     start_time: str
     end_time: str | None = None
     status: str
+    payment_status: str | None = None
+    amount_paid: int | None = None  # in öre
 
 
 class Booking(BookingResponse):

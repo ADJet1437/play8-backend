@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from src.booking.models import Booking, BookingCreate, BookingUpdate
@@ -14,12 +14,14 @@ router = APIRouter(prefix="/api/v1/bookings", tags=["bookings"])
 def list_bookings(
     limit: int = 100,
     offset: int = 0,
+    status: str | None = Query(default=None, description="Comma-separated statuses, e.g. confirmed,active"),
     current_user: DBUser = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
-    """List all bookings for the current user"""
+    """List bookings for the current user. Optionally filter by comma-separated status values."""
+    statuses = [s.strip() for s in status.split(",")] if status else None
     service = BookingService(db)
-    bookings, total = service.get_bookings_by_user(current_user.id, limit, offset)
+    bookings, total = service.get_bookings_by_user(current_user.id, limit, offset, statuses)
 
     return PagedResponse(
         data=[service.to_pydantic(b) for b in bookings],
