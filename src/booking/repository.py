@@ -20,15 +20,17 @@ class BookingRepository:
         offset: int = 0,
         statuses: list[str] | None = None,
     ) -> list[DBBooking]:
-        """Get bookings for a user, optionally filtered by status list."""
-        query = self.db.query(DBBooking).filter(DBBooking.user_id == user_id)
+        """Get bookings for a user, optionally filtered by status list. Only returns future/ongoing bookings."""
+        now = dt.datetime.now(tz=dt.UTC)
+        query = self.db.query(DBBooking).filter(DBBooking.user_id == user_id, DBBooking.end_time > now)
         if statuses:
             query = query.filter(DBBooking.status.in_(statuses))
         return query.order_by(DBBooking.start_time.asc()).offset(offset).limit(limit).all()
 
     def count_by_user_id(self, user_id: str, statuses: list[str] | None = None) -> int:
-        """Count bookings for a user, optionally filtered by status list."""
-        query = self.db.query(DBBooking).filter(DBBooking.user_id == user_id)
+        """Count bookings for a user, optionally filtered by status list. Only counts future/ongoing bookings."""
+        now = dt.datetime.now(tz=dt.UTC)
+        query = self.db.query(DBBooking).filter(DBBooking.user_id == user_id, DBBooking.end_time > now)
         if statuses:
             query = query.filter(DBBooking.status.in_(statuses))
         return query.count()
