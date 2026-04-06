@@ -19,6 +19,10 @@ STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "sk_test_placeholder")
 STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "whsec_placeholder")
 STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY", "pk_test_placeholder")
 
+# Email (Resend)
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+FROM_EMAIL = os.getenv("FROM_EMAIL", "Play8 <noreply@play8.ai>")
+
 # Environment
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 IS_PRODUCTION = ENVIRONMENT == "production"
