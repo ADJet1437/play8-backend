@@ -7,6 +7,7 @@ from src.agent.router import router as agent_router
 from src.plan.router import router as plan_router
 from src.saved_session.router import router as saved_session_router
 from src.manual.router import router as manual_router
+from src.waiting_list.router import router as waiting_list_router
 
 
 def register_routers(app):
@@ -19,3 +20,4 @@ def register_routers(app):
     app.include_router(plan_router)
     app.include_router(saved_session_router)
     app.include_router(manual_router)
+    app.include_router(waiting_list_router)
