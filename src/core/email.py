@@ -46,6 +46,31 @@ def send_verification_email(to_email: str, name: str, token: str) -> None:
         raise
 
 
+def send_waiting_list_email(to_email: str, plan: str) -> None:
+    plan_label = "1 Week (499 kr)" if plan == "week" else "1 Month (1 999 kr)"
+    html = f"""
+    <div style="font-family:sans-serif;max-width:480px;margin:0 auto">
+      <h2 style="color:#4f46e5">You're on the list!</h2>
+      <p>Thanks for your interest in renting a Play8 ball machine.</p>
+      <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin:20px 0">
+        <p style="margin:0;font-size:14px;color:#6b7280">Selected plan</p>
+        <p style="margin:4px 0 0;font-size:16px;font-weight:600;color:#111827">{plan_label}</p>
+      </div>
+      <p>We'll reach out to you personally as soon as rentals go live. Stay tuned!</p>
+      <p style="color:#6b7280;font-size:13px">— The Play8 Team</p>
+    </div>
+    """
+    try:
+        _get_client().send({
+            "from": FROM_EMAIL,
+            "to": [to_email],
+            "subject": "You're on the Play8 rental waiting list!",
+            "html": html,
+        })
+    except Exception:
+        logger.exception("Failed to send waiting list email to %s", to_email)
+
+
 def send_welcome_email(to_email: str, name: str) -> None:
     html = f"""
     <div style="font-family:sans-serif;max-width:480px;margin:0 auto">
