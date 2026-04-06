@@ -1,5 +1,8 @@
 from datetime import datetime, timedelta
 
+import hashlib
+
+import bcrypt
 import httpx
 from fastapi import Cookie, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -15,6 +18,37 @@ from src.core.config import (
     JWT_SECRET_KEY,
 )
 from src.core.database import get_db
+
+def _pre_hash(password: str) -> bytes:
+    """SHA-256 pre-hash keeps input under bcrypt's 72-byte limit."""
+    return hashlib.sha256(password.encode()).digest()
+
+
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(_pre_hash(password), bcrypt.gensalt()).decode()
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return bcrypt.checkpw(_pre_hash(plain_password), hashed_password.encode())
+
+
+def create_short_lived_token(data: dict, expires_delta: timedelta) -> str:
+    """Create a short-lived JWT for email verification or password reset."""
+    to_encode = data.copy()
+    to_encode["exp"] = datetime.utcnow() + expires_delta
+    return jwt.encode(to_encode, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
+
+
+def verify_short_lived_token(token: str, purpose: str) -> dict | None:
+    """Verify a short-lived token and return payload if valid and purpose matches."""
+    try:
+        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+        if payload.get("purpose") != purpose:
+            return None
+        return payload
+    except JWTError:
+        return None
+
 
 # HTTPBearer is now created inline with auto_error=False to make it optional
 

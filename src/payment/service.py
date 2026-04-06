@@ -1,5 +1,6 @@
 import math
 from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import stripe
 from sqlalchemy.orm import Session
@@ -7,9 +8,13 @@ from sqlalchemy.orm import Session
 from src.booking.repository import BookingRepository
 from src.booking.service import BookingService
 from src.core import config
+from src.core.email import send_booking_confirmation_email
 from src.machine.repository import MachineRepository
 from src.payment.models import PaymentIntentResponse, RefundResponse
 from src.payment.repository import PaymentRepository
+from src.user.repository import UserRepository
+
+_TZ = ZoneInfo("Europe/Stockholm")
 
 stripe.api_key = config.STRIPE_SECRET_KEY
 
@@ -20,6 +25,7 @@ class PaymentService:
         self.payment_repo = PaymentRepository(db)
         self.booking_repo = BookingRepository(db)
         self.machine_repo = MachineRepository(db)
+        self.user_repo = UserRepository(db)
 
     def calculate_amount(self, price_per_hour: int, start_time: datetime, end_time: datetime) -> int:
         """Calculate total amount in öre. Rounds up to nearest half-hour."""
@@ -105,10 +111,39 @@ class PaymentService:
         self.payment_repo.update_status(payment, "succeeded")
 
         booking = self.booking_repo.get_by_id(payment.booking_id)
-        if booking:
-            booking.status = "confirmed"
-            booking.payment_status = "paid"
-            self.db.commit()
+        if not booking:
+            return
+
+        booking.status = "confirmed"
+        booking.payment_status = "paid"
+        self.db.commit()
+
+        self._send_booking_confirmation(booking, payment.amount)
+
+    def _send_booking_confirmation(self, booking, amount_ore: int) -> None:
+        user = self.user_repo.get_by_id(booking.user_id)
+        machine = self.machine_repo.get_by_id(booking.machine_id)
+        if not user or not machine:
+            return
+
+        def _fmt(dt: datetime) -> str:
+            local = dt.astimezone(_TZ) if dt.tzinfo else dt.replace(tzinfo=UTC).astimezone(_TZ)
+            return local.strftime("%a %-d %b %Y, %H:%M")
+
+        start = booking.start_time
+        end = booking.end_time
+        duration_minutes = int((end - start).total_seconds() / 60) if end else 0
+
+        send_booking_confirmation_email(
+            to_email=user.email,
+            name=user.name,
+            machine_name=machine.name,
+            machine_location=machine.location,
+            start_time=_fmt(start),
+            end_time=_fmt(end) if end else "—",
+            duration_minutes=duration_minutes,
+            amount_sek=amount_ore / 100,
+        )
 
     def _on_payment_failed(self, stripe_intent_id: str) -> None:
         payment = self.payment_repo.get_by_stripe_intent_id(stripe_intent_id)
