@@ -1,7 +1,7 @@
 """build conversations and messages tables
 
 Revision ID: 3173ad542597
-Revises: b1a0c9d8e7f6
+Revises: d2e3f4a5b6c7
 Create Date: 2026-02-05 21:15:31.758075
 
 """
@@ -11,7 +11,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = '3173ad542597'
-down_revision = 'b1a0c9d8e7f6'
+down_revision = 'd2e3f4a5b6c7'
 branch_labels = None
 depends_on = None
 
